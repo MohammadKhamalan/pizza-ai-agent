@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pizza House - Call Sami</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: Arial, sans-serif;
+      min-height: 100vh;
+      background: linear-gradient(to bottom right, #e0f2fe, #c7d2fe);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .container {
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+      padding: 40px;
+      max-width: 500px;
+      width: 100%;
+    }
+
+    h1 {
+      font-size: 2rem;
+      font-weight: bold;
+      color: #1f2937;
+      text-align: center;
+      margin-bottom: 30px;
+    }
+
+    .status-box {
+      margin-bottom: 24px;
+      padding: 16px;
+      background: #f9fafb;
+      border-radius: 12px;
+    }
+
+    .status-label {
+      font-size: 0.875rem;
+      color: #6b7280;
+      margin-bottom: 8px;
+    }
+
+    .status-text {
+      font-size: 1.125rem;
+      font-weight: 600;
+      color: #1f2937;
+    }
+
+    .error-box {
+      margin-bottom: 16px;
+      padding: 16px;
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 12px;
+    }
+
+    .error-text {
+      color: #991b1b;
+      font-size: 0.875rem;
+    }
+
+    .button-group {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    button {
+      padding: 12px 24px;
+      border-radius: 12px;
+      font-weight: 600;
+      color: white;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-size: 1rem;
+    }
+
+    button:active {
+      transform: scale(0.95);
+    }
+
+    .btn-start {
+      background: #10b981;
+    }
+
+    .btn-start:hover:not(:disabled) {
+      background: #059669;
+    }
+
+    .btn-end {
+      background: #ef4444;
+    }
+
+    .btn-end:hover:not(:disabled) {
+      background: #dc2626;
+    }
+
+    button:disabled {
+      background: #9ca3af;
+      cursor: not-allowed;
+    }
+
+    .mic-status {
+      margin-top: 24px;
+      padding: 16px;
+      background: #eff6ff;
+      border-radius: 12px;
+    }
+
+    .mic-status-text {
+      font-size: 0.75rem;
+      color: #1e40af;
+      text-align: center;
+    }
+
+    .info-box {
+      margin-top: 16px;
+      padding: 12px;
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      border-radius: 12px;
+    }
+
+    .info-text {
+      font-size: 0.75rem;
+      color: #166534;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Pizza House - Call Sami</h1>
+
+    <div class="status-box">
+      <p class="status-label">Status:</p>
+      <p class="status-text" id="status">Ready</p>
+    </div>
+
+    <div id="errorBox" class="error-box" style="display: none;">
+      <p class="error-text" id="errorText"></p>
+    </div>
+
+    <div class="button-group">
+      <button id="startCallBtn" class="btn-start" onclick="startCall()">
+        Start Call
+      </button>
+      <button id="endCallBtn" class="btn-end" onclick="endCall()" disabled>
+        End Call
+      </button>
+    </div>
+
+    <div class="mic-status">
+      <p class="mic-status-text" id="micStatus">Checking microphone access...</p>
+    </div>
+
+   
+  </div>
+
+  <script>
+    const AGENT_ID = "agent_3401kax31pw6ew6vw2jyw3f0smy6";
+
+    let micAccess = false;
+    let isCalling = false;
+    let ws = null;
+    let audioContext = null;
+    let mediaStream = null;
+    let audioQueue = [];
+    let isPlaying = false;
+
+    // Check microphone access on page load
+    window.addEventListener('DOMContentLoaded', () => {
+      checkMicrophoneAccess();
+    });
+
+    async function checkMicrophoneAccess() {
+      try {
+        await navigator.mediaDevices.getUserMedia({ audio: true });
+        micAccess = true;
+        updateStatus("Microphone access granted");
+        document.getElementById('micStatus').textContent = "✓ Microphone ready";
+      } catch (err) {
+        micAccess = false;
+        showError("Please allow microphone access");
+        document.getElementById('micStatus').textContent = "✗ Please allow microphone access";
+        console.error("Microphone access denied:", err);
+      }
+    }
+
+    function updateStatus(text) {
+      document.getElementById('status').textContent = text;
+    }
+
+    function showError(message) {
+      const errorBox = document.getElementById('errorBox');
+      const errorText = document.getElementById('errorText');
+      errorText.textContent = message;
+      errorBox.style.display = 'block';
+    }
+
+    function hideError() {
+      document.getElementById('errorBox').style.display = 'none';
+    }
+
+    async function startCall() {
+      if (!micAccess) {
+        alert("Please allow microphone access");
+        return;
+      }
+
+      hideError();
+      updateStatus("Connecting...");
+      isCalling = true;
+      document.getElementById('startCallBtn').disabled = true;
+      document.getElementById('endCallBtn').disabled = false;
+
+      try {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)({
+          sampleRate: 16000
+        });
+
+        const wsUrl = `wss://api.elevenlabs.io/v1/convai/conversation?agent_id=${AGENT_ID}`;
+        ws = new WebSocket(wsUrl);
+
+        ws.onopen = async () => {
+          console.log("WebSocket connected");
+          updateStatus("Connected - You can speak now");
+
+          try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+              audio: {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true,
+                sampleRate: 16000,
+                channelCount: 1
+              }
+            });
+
+            mediaStream = stream;
+
+            const source = audioContext.createMediaStreamSource(stream);
+            const processor = audioContext.createScriptProcessor(2048, 1, 1);
+
+            processor.onaudioprocess = (e) => {
+              if (ws && ws.readyState === WebSocket.OPEN) {
+                const inputData = e.inputBuffer.getChannelData(0);
+                const pcm16 = convertFloat32ToPCM16(inputData);
+                const base64Audio = arrayBufferToBase64(pcm16);
+
+                ws.send(JSON.stringify({
+                  user_audio_chunk: base64Audio
+                }));
+              }
+            };
+
+            source.connect(processor);
+            processor.connect(audioContext.destination);
+          } catch (err) {
+            console.error("Failed to capture audio:", err);
+            showError("Failed to capture audio from microphone");
+          }
+        };
+
+        ws.onmessage = async (event) => {
+          try {
+            const message = JSON.parse(event.data);
+            console.log("Received message:", message);
+
+            if (message.type === "audio") {
+              const audioData = message.audio_event?.audio_base_64 || message.audio;
+              if (audioData) {
+                audioQueue.push(audioData);
+                playNextAudio();
+              }
+            } else if (message.type === "interruption") {
+              audioQueue = [];
+              isPlaying = false;
+            } else if (message.type === "agent_response") {
+              console.log("Agent response:", message.agent_response_event || message);
+            } else if (message.type === "ping") {
+              ws.send(JSON.stringify({ type: "pong", event_id: message.ping_event?.event_id }));
+            }
+          } catch (err) {
+            console.error("Error processing message:", err);
+          }
+        };
+
+        ws.onerror = (err) => {
+          console.error("WebSocket error:", err);
+          showError("Connection error occurred");
+          updateStatus("Connection error");
+        };
+
+        ws.onclose = () => {
+          console.log("WebSocket closed");
+          updateStatus("Connection closed");
+          isCalling = false;
+          document.getElementById('startCallBtn').disabled = false;
+          document.getElementById('endCallBtn').disabled = true;
+          cleanup();
+        };
+
+      } catch (err) {
+        console.error("Failed to start call:", err);
+        showError("Failed to start call: " + err.message);
+        updateStatus("Error");
+        isCalling = false;
+        document.getElementById('startCallBtn').disabled = false;
+        document.getElementById('endCallBtn').disabled = true;
+        cleanup();
+      }
+    }
+
+    async function playNextAudio() {
+      if (isPlaying || audioQueue.length === 0) {
+        return;
+      }
+
+      isPlaying = true;
+      const base64Audio = audioQueue.shift();
+
+      try {
+        const binaryString = atob(base64Audio);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+
+       
+        const pcm16 = new Int16Array(bytes.buffer);
+        const float32 = new Float32Array(pcm16.length);
+        for (let i = 0; i < pcm16.length; i++) {
+          float32[i] = pcm16[i] / (pcm16[i] < 0 ? 0x8000 : 0x7FFF);
+        }
+
+        const audioBuffer = audioContext.createBuffer(
+          1, 
+          float32.length,
+          16000 
+        );
+        audioBuffer.getChannelData(0).set(float32);
+
+        const source = audioContext.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(audioContext.destination);
+
+        source.onended = () => {
+          isPlaying = false;
+          playNextAudio();
+        };
+
+        source.start();
+      } catch (err) {
+        console.error("Error playing audio:", err);
+        isPlaying = false;
+        playNextAudio();
+      }
+    }
+
+    function convertFloat32ToPCM16(float32Array) {
+      const pcm16 = new Int16Array(float32Array.length);
+      for (let i = 0; i < float32Array.length; i++) {
+        const s = Math.max(-1, Math.min(1, float32Array[i]));
+        pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+      }
+      return pcm16.buffer;
+    }
+
+    function arrayBufferToBase64(buffer) {
+      let binary = '';
+      const bytes = new Uint8Array(buffer);
+      for (let i = 0; i < bytes.byteLength; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      return btoa(binary);
+    }
+
+    function cleanup() {
+      if (ws) {
+        ws.close();
+        ws = null;
+      }
+      if (mediaStream) {
+        mediaStream.getTracks().forEach(track => track.stop());
+        mediaStream = null;
+      }
+      if (audioContext) {
+        audioContext.close();
+        audioContext = null;
+      }
+      audioQueue = [];
+      isPlaying = false;
+    }
+
+    function endCall() {
+      updateStatus("Call ended");
+      isCalling = false;
+      document.getElementById('startCallBtn').disabled = false;
+      document.getElementById('endCallBtn').disabled = true;
+      cleanup();
+    }
+
+    window.addEventListener('beforeunload', cleanup);
+  </script>
+</body>
+</html>
