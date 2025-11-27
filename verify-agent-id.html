@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verify Agent ID</title>
+  <style>
+    body { font-family: Arial; margin: 20px; background: #f5f5f5; }
+    .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; }
+    .step { margin: 20px 0; padding: 15px; background: #f8f9fa; border-left: 4px solid #007bff; }
+    .code { background: #f4f4f4; padding: 10px; border-radius: 4px; font-family: monospace; margin: 10px 0; }
+    .warning { background: #fff3cd; border-left-color: #ffc107; }
+    .error { background: #f8d7da; border-left-color: #dc3545; }
+    h2 { color: #333; }
+    img { max-width: 100%; border: 1px solid #ddd; margin: 10px 0; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>How to Find Your Correct Agent ID</h1>
+    
+    <div class="step">
+      <h2>Step 1: Go to Your ElevenLabs Dashboard</h2>
+      <p>Open: <a href="https://elevenlabs.io/app/conversational-ai" target="_blank">https://elevenlabs.io/app/conversational-ai</a></p>
+    </div>
+    
+    <div class="step">
+      <h2>Step 2: Find Your Agent</h2>
+      <p>Look for your agent named "Sami" or your waiter agent.</p>
+      <p>Click on it to open the agent settings.</p>
+    </div>
+    
+    <div class="step">
+      <h2>Step 3: Get the Agent ID</h2>
+      <p>The Agent ID can be found in several places:</p>
+      <ul>
+        <li><strong>In the URL:</strong> When you open the agent, check the browser URL. It might look like:
+          <div class="code">https://elevenlabs.io/app/conversational-ai/agent/[AGENT_ID]</div>
+        </li>
+        <li><strong>In Agent Settings:</strong> Look for "Agent ID", "ID", or "API ID" in the settings page</li>
+        <li><strong>In API/Integration Section:</strong> Check if there's an "API" or "Integration" tab that shows the ID</li>
+      </ul>
+    </div>
+    
+    <div class="step warning">
+      <h2>⚠️ Important Notes:</h2>
+      <ul>
+        <li>The Agent ID might <strong>NOT</strong> start with "agent_"</li>
+        <li>It could be just a string of characters/numbers</li>
+        <li>Copy it EXACTLY as shown (no spaces, no extra characters)</li>
+      </ul>
+    </div>
+    
+    <div class="step">
+      <h2>Step 4: Check Your n8n Workflow</h2>
+      <p>Since you connected the agent to n8n, check your n8n workflow:</p>
+      <ol>
+        <li>Open your n8n workflow</li>
+        <li>Find the node that calls ElevenLabs</li>
+        <li>Look at the URL/endpoint it uses</li>
+        <li>Check if there's an Agent ID parameter</li>
+        <li><strong>Share that URL/endpoint with me</strong> - this will help me find the correct API structure!</li>
+      </ol>
+    </div>
+    
+    <div class="step error">
+      <h2>Current Agent ID Being Used:</h2>
+      <div class="code">agent_3401kax31pw6ew6vw2jyw3f0smy6</div>
+      <p>If this is NOT the correct ID from your dashboard, that's the problem!</p>
+    </div>
+    
+    <div class="step">
+      <h2>Step 5: Update the Agent ID</h2>
+      <p>Once you find the correct Agent ID:</p>
+      <ol>
+        <li>Open <code>server.js</code> file</li>
+        <li>Find line 12: <code>const agentId = 'agent_3401kax31pw6ew6vw2jyw3f0smy6';</code></li>
+        <li>Replace it with your correct Agent ID</li>
+        <li>Restart the server</li>
+      </ol>
+    </div>
+    
+    <div class="step">
+      <h2>Alternative: Check n8n Webhook</h2>
+      <p>If your agent is set up to receive webhooks (like from n8n), it might work differently:</p>
+      <ul>
+        <li>The agent might need to be "called" via webhook URL, not REST API</li>
+        <li>Check if there's a webhook URL in your agent settings</li>
+        <li>Your n8n workflow might be using a webhook to trigger the agent</li>
+      </ul>
+    </div>
+  </div>
+</body>
+</html>
+
