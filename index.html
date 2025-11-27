@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pizza House - Call Sami</title>
+  <title>Zuccess - Call Sami</title>
   <style>
     * {
       margin: 0;
@@ -142,7 +142,7 @@
 </head>
 <body>
   <div class="container">
-    <h1>Pizza House - Call Sami</h1>
+    <h1>Zuccess - Call Sami</h1>
 
     <div class="status-box">
       <p class="status-label">Status:</p>
@@ -179,6 +179,9 @@
     let mediaStream = null;
     let audioQueue = [];
     let isPlaying = false;
+    let currentSource = null;
+    let currentResponseId = null;
+    let playingResponseId = null;
 
     // Check microphone access on page load
     window.addEventListener('DOMContentLoaded', () => {
@@ -282,14 +285,26 @@
             if (message.type === "audio") {
               const audioData = message.audio_event?.audio_base_64 || message.audio;
               if (audioData) {
-                audioQueue.push(audioData);
-                playNextAudio();
+                const responseId = message.audio_event?.response_id || message.audio_event?.agent_response_id || currentResponseId || "default";
+                enqueueAudioChunk(audioData, responseId);
               }
             } else if (message.type === "interruption") {
+              stopCurrentAudio();
               audioQueue = [];
               isPlaying = false;
+              playingResponseId = null;
             } else if (message.type === "agent_response") {
-              console.log("Agent response:", message.agent_response_event || message);
+              const responseEvent = message.agent_response_event || {};
+              const responseId = responseEvent.response_id || responseEvent.agent_response_id;
+              if (responseId && responseId !== currentResponseId) {
+                currentResponseId = responseId;
+                if (playingResponseId && playingResponseId !== responseId) {
+                  stopCurrentAudio();
+                  audioQueue = [];
+                  playingResponseId = null;
+                }
+              }
+              console.log("Agent response:", responseEvent || message);
             } else if (message.type === "ping") {
               ws.send(JSON.stringify({ type: "pong", event_id: message.ping_event?.event_id }));
             }
@@ -324,13 +339,40 @@
       }
     }
 
+    function enqueueAudioChunk(audioData, responseId) {
+      if (playingResponseId && responseId !== playingResponseId) {
+        stopCurrentAudio();
+        audioQueue = [];
+      }
+
+      audioQueue.push({ audioData, responseId });
+      playNextAudio();
+    }
+
+    function stopCurrentAudio() {
+      if (currentSource) {
+        try {
+          currentSource.onended = null;
+          currentSource.stop();
+        } catch (err) {
+          console.warn("Unable to stop current audio source:", err);
+        } finally {
+          currentSource = null;
+        }
+      }
+      isPlaying = false;
+    }
+
     async function playNextAudio() {
       if (isPlaying || audioQueue.length === 0) {
         return;
       }
 
       isPlaying = true;
-      const base64Audio = audioQueue.shift();
+      const { audioData: base64Audio, responseId } = audioQueue.shift();
+      if (!playingResponseId) {
+        playingResponseId = responseId;
+      }
 
       try {
         const binaryString = atob(base64Audio);
@@ -353,19 +395,27 @@
         );
         audioBuffer.getChannelData(0).set(float32);
 
-        const source = audioContext.createBufferSource();
-        source.buffer = audioBuffer;
-        source.connect(audioContext.destination);
+        currentSource = audioContext.createBufferSource();
+        currentSource.buffer = audioBuffer;
+        currentSource.connect(audioContext.destination);
 
-        source.onended = () => {
+        currentSource.onended = () => {
           isPlaying = false;
+          currentSource = null;
+          if (audioQueue.length === 0) {
+            playingResponseId = null;
+          }
           playNextAudio();
         };
 
-        source.start();
+        currentSource.start();
       } catch (err) {
         console.error("Error playing audio:", err);
         isPlaying = false;
+        currentSource = null;
+        if (audioQueue.length === 0) {
+          playingResponseId = null;
+        }
         playNextAudio();
       }
     }
@@ -402,7 +452,8 @@
         audioContext = null;
       }
       audioQueue = [];
-      isPlaying = false;
+      stopCurrentAudio();
+      playingResponseId = null;
     }
 
     function endCall() {
